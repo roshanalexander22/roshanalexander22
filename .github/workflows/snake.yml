@@ -7,6 +7,7 @@ on:
   push:
     branches:
       - main
+      - master
 
 jobs:
   generate:
@@ -18,6 +19,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Generate Snake Animation
         uses: Platane/snk/svg-only@v3
@@ -27,10 +30,41 @@ jobs:
             dist/github-contribution-grid-snake.svg
             dist/github-contribution-grid-snake-dark.svg?palette=github-dark
 
-      - name: Push Snake to Output Branch
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dist
-          publish_branch: output
-          force_orphan: true
+      - name: Push Snake to output branch
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git ls-remote --exit-code --heads origin output >/dev/null 2>&1; then
+            git checkout -B output origin/output
+          else
+            git checkout --orphan output
+          fi
+
+          git rm -rf . --cached --ignore-unmatch >/dev/null 2>&1 || true
+          cp -r dist/. .
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git commit -m "Update contribution snake $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          for attempt in 1 2 3; do
+            if git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:output; then
+              echo "Push succeeded."
+              exit 0
+            fi
+            echo "Push failed on attempt ${attempt}/3. Retrying..."
+            sleep $((attempt * 5))
+          done
+
+          echo "Push failed after 3 attempts." >&2
+          exit 1
