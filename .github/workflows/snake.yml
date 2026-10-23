@@ -40,6 +40,12 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+          # Ensure the working tree is completely clean before switching branches.
+          # This prevents checkout from failing when dist/ contains generated SVG files.
+          git reset --hard HEAD
+          git clean -fdx || true
+          rm -rf dist
+
           if git ls-remote --exit-code --heads origin output >/dev/null 2>&1; then
             git checkout -B output origin/output
           else
@@ -55,7 +61,7 @@ jobs:
             exit 0
           fi
 
-          git commit -m "Update contribution snake $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          git commit -m "Update contribution snake $(date -u +%Y-%M-%dT%H:%M:%SZ)"
 
           for attempt in 1 2 3; do
             if git push "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:output; then
